@@ -5,10 +5,10 @@ A hardware implementation of the multitally system using ESP32 to communicate wi
 ## Features
 
 - Connects to Feelworld video switchers via UDP protocol
-- Displays camera status using LED indicators
-- Supports up to 4 cameras (live, preview, offline states)
+- Displays connection and camera status using WS2812B RGB LED indicators
+- Monitors specified camera (default Camera 1) for live/preview status
 - Automatic reconnection on network issues
-- Configurable via simple header file
+- Configurable via defines in the .ino file
 
 ## Hardware Requirements
 
@@ -25,11 +25,12 @@ WS2812B VCC → 5V or 3.3V (check your WS2812B spec)
 WS2812B GND → GND
 ```
 
-**Note**: The WS2812B LED will display connection and camera status (hardcoded for Camera 1):
+**Note**: The WS2812B LED will display connection and camera status (monitors specified camera, default 1):
 - Purple: Connected to WiFi
-- Blue: Connected to Feelworld device
-- Red: Camera 1 is active (live or preview)
-- Green: Other camera is active or no camera active
+- Blue: Connected to Feelworld device (no status received yet)
+- Red: Specified camera is live
+- Green: Specified camera is in preview
+- Off: Specified camera is neither live nor preview
 
 ## Setup Instructions
 
@@ -46,17 +47,18 @@ WS2812B GND → GND
 Install these libraries via Arduino Library Manager (Sketch → Include Library → Manage Libraries):
 - WiFi (usually included with ESP32)
 - WiFiUDP (usually included with ESP32)
-- ArduinoJson (by Benoit Blanchon)
 - Adafruit NeoPixel (by Adafruit)
 
 ### 3. Configure the Project
 
 1. Open `esp32_multitally.ino` in Arduino IDE
-2. Update `config.h` with your settings:
+2. Update the `#define` statements at the top of the file with your settings:
    - `WIFI_SSID`: Your WiFi network name
-   - `WIFI_PASSWORD`: Your WiFi password  
+   - `WIFI_PASSWORD`: Your WiFi password
    - `FEELWORLD_IP`: IP address of your Feelworld device
-   - Update `CAMERA_LED_PINS` if using different GPIO pins
+   - `LED_PIN`: GPIO pin for WS2812B data (default 2)
+   - `NUM_LEDS`: Number of WS2812B LEDs (default 1)
+   - `MY_CAMERA_INDEX`: Camera ID to monitor (1-4, default 1)
 
 ### 4. Upload to ESP32
 
@@ -77,9 +79,23 @@ Install these libraries via Arduino Library Manager (Sketch → Include Library 
 ## LED Status Indicators
 
 - **Purple**: Connected to WiFi
-- **Blue**: Connected to Feelworld device
-- **Red**: Camera 1 is active (live or preview)
-- **Green**: Other camera is active or no camera active
+- **Blue**: Connected to Feelworld device (no status received yet)
+- **Red**: Specified camera is live
+- **Green**: Specified camera is in preview
+- **Off**: Specified camera is neither live nor preview
+
+## Code Overview
+
+The main code is in `esp32_multitally.ino` with configuration via `#define` statements at the top of the file.
+
+### Key Functions
+
+- `setup()`: Initializes serial, NeoPixel strip, connects to WiFi and Feelworld.
+- `loop()`: Polls for camera status if connected, otherwise attempts reconnection.
+- `connectWiFi()`: Connects to WiFi and updates LED.
+- `feelworldConnect()`: Sends connection command to Feelworld device and updates LED.
+- `pollStatus()`: Requests camera status from Feelworld device and parses response.
+- `updateLEDDecision()`: Sets the LED color based on connection and camera status.
 
 ## Protocol Details
 
@@ -103,17 +119,17 @@ Responses follow the pattern: `<Fxxxxxxxxxx>` where specific bytes indicate came
 ### Common Issues
 
 1. **WiFi Connection Fails**
-   - Check SSID and password in config.h
+   - Check SSID and password in the #define statements in esp32_multitally.ino
    - Ensure ESP32 is in range of WiFi network
 
 2. **Cannot Connect to Feelworld Device**
-   - Verify Feelworld device IP address
+   - Verify Feelworld device IP address in the #define statements
    - Check that Feelworld device is on same network
    - Ensure Feelworld Open API is enabled
 
 3. **WS2812B LED Not Lighting**
    - Check wiring connections (Data In to GPIO2, VCC to power, GND to GND)
-   - Verify LED_PIN in config.h matches your wiring
+   - Verify LED_PIN in the #define statements matches your wiring
    - Ensure WS2812B is powered correctly (5V or 3.3V as per spec)
    - Check if Adafruit NeoPixel library is installed
 
@@ -127,11 +143,11 @@ Enable serial monitor (Tools → Serial Monitor) at 115200 baud to see debug mes
 
 ## Customization
 
-### Adding More Cameras
-Update the `CAMERA_LED_PINS` array in `config.h` and modify the parsing logic if your Feelworld device supports more than 4 cameras.
+### Changing Monitored Camera
+Update the `MY_CAMERA_INDEX` #define to monitor a different camera (1-4).
 
 ### Different LED Behaviors
-Modify the `updateLEDs()` function to implement:
+Modify the `updateLEDDecision()` function to implement:
 - Blinking patterns
 - Different colors for different states (using WS2812B RGB capabilities)
 - Brightness control via RGB values
